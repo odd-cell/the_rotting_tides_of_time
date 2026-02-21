@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Rotting Tides of Time — Play</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/theme-rite.css">
+  <link rel="stylesheet" href="css/theme-echo.css">
+</head>
+<body class="theme-start" id="game-body">
+  <header class="site-header">
+    <a href="https://startplaying.games/gm/cozy-explorer" target="_blank" rel="noopener" class="site-header-link">An Akarii's Corner Project</a>
+  </header>
+  <main class="game-main">
+    <article class="scene-card" id="scene-card">
+      <h2 class="scene-title" id="scene-title"></h2>
+      <div class="scene-body" id="scene-body"></div>
+      <div class="choices" id="choices"></div>
+    </article>
+
+    <section class="ending-actions" id="ending-actions" hidden>
+      <p class="outcome-code" id="outcome-code"></p>
+      <p class="ending-message" id="ending-message"></p>
+      <div class="ending-buttons">
+        <a href="https://www.reddit.com/message/compose/?to=Akarii" target="_blank" rel="noopener" class="btn btn-share" id="btn-share">Share your outcome (PM Akarii)</a>
+        <a href="game.html?retry=1" class="btn btn-retry" id="btn-retry">Retry to get the best ending</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="game-footer">
+    <div class="party-tracker" id="party-tracker">
+      <span class="tracker-label">Party</span>
+      <div class="party-tokens" id="party-tokens"></div>
+    </div>
+    <div class="progress-tracker" id="progress-tracker">
+      <span class="tracker-label">Progress</span>
+      <div class="progress-bar" id="progress-bar">
+        <span class="progress-fill" id="progress-fill"></span>
+      </div>
+      <div class="progress-hubs" id="progress-hubs"></div>
+    </div>
+  </footer>
+
+  <script src="js/game.js"></script>
+  <script>
+    (function () {
+      var body = document.getElementById('game-body');
+      var sceneCard = document.getElementById('scene-card');
+      var sceneTitle = document.getElementById('scene-title');
+      var sceneBody = document.getElementById('scene-body');
+      var choicesEl = document.getElementById('choices');
+      var endingActions = document.getElementById('ending-actions');
+      var outcomeCodeEl = document.getElementById('outcome-code');
+      var endingMessage = document.getElementById('ending-message');
+      var partyTokens = document.getElementById('party-tokens');
+      var progressFill = document.getElementById('progress-fill');
+      var progressHubs = document.getElementById('progress-hubs');
+
+      var RT = window.RottingTides;
+      var PARTY_IDS = RT.PARTY_IDS;
+      var PROGRESS_HUBS = RT.PROGRESS_HUBS;
+      var tokenNames = { grimshaw: 'Grimshaw', suki: 'Suki', kaelen: 'Kaelen', malagant: 'Malagant', snap: 'Snap', skewer: 'Skewer' };
+      var typewriterTimer = null;
+
+      function runTypewriter(el, text, speedMs, onDone) {
+        if (typewriterTimer) clearTimeout(typewriterTimer);
+        el.textContent = '';
+        el.classList.add('typewriter-active');
+        var i = 0;
+        function tick() {
+          if (i >= text.length) {
+            el.classList.remove('typewriter-active');
+            if (onDone) onDone();
+            return;
+          }
+          i += 1;
+          el.textContent = text.slice(0, i);
+          typewriterTimer = setTimeout(tick, speedMs);
+        }
+        tick();
+      }
+
+      function setTheme() {
+        body.classList.remove('theme-start', 'theme-rite', 'theme-echo');
+        var path = RT.getPath();
+        if (path === 'rite') body.classList.add('theme-rite');
+        else if (path === 'echo') body.classList.add('theme-echo');
+        else body.classList.add('theme-start');
+      }
+
+      function renderParty() {
+        var party = RT.getParty();
+        partyTokens.innerHTML = '';
+        party.forEach(function (id) {
+          var span = document.createElement('span');
+          span.className = 'token token-' + id;
+          span.setAttribute('title', tokenNames[id] || id);
+          var img = document.createElement('img');
+          img.src = 'assets/tokens/' + id + '.png';
+          img.alt = tokenNames[id] || id;
+          img.onerror = function () {
+            this.style.display = 'none';
+            var letter = document.createElement('span');
+            letter.className = 'token-initial';
+            letter.textContent = (tokenNames[id] || id).charAt(0);
+            this.parentNode.appendChild(letter);
+          };
+          span.appendChild(img);
+          partyTokens.appendChild(span);
+        });
+      }
+
+      function renderProgress() {
+        var progress = RT.getProgress();
+        var pct = progress >= 0 && progress < PROGRESS_HUBS.length ? (progress / (PROGRESS_HUBS.length - 1)) * 100 : 0;
+        progressFill.style.width = pct + '%';
+        progressHubs.innerHTML = '';
+        PROGRESS_HUBS.forEach(function (label, i) {
+          var span = document.createElement('span');
+          span.className = 'hub' + (i <= progress ? ' reached' : '');
+          span.textContent = label;
+          progressHubs.appendChild(span);
+        });
+      }
+
+      function showEndingActions() {
+        var code = RT.getOutcomeCode();
+        var goodEnding = false;
+        var sceneId = RT.getSceneId();
+        var scene = RT.getScene(sceneId);
+        if (scene && scene.goodEnding) goodEnding = true;
+        sceneCard.hidden = true;
+        endingActions.hidden = false;
+        outcomeCodeEl.textContent = 'Your outcome code: ' + (code || '—');
+        var bestEnding = sceneId === 'epilogue_all_four';
+        if (bestEnding)
+          endingMessage.textContent = 'You reached the best ending—no one died, and everyone stands with you before the Frigidlord. Share your code if you like.';
+        else if (goodEnding)
+          endingMessage.textContent = 'You reached the Frigidlord. Share your outcome code, or retry to get the ending where no one dies and everyone makes it.';
+        else
+          endingMessage.textContent = 'Share your outcome code with Akarii in a private message, or retry to get the best ending.';
+      }
+
+      function render() {
+        if (typewriterTimer) {
+          clearTimeout(typewriterTimer);
+          typewriterTimer = null;
+        }
+        var sceneId = RT.getSceneId();
+        var scene = RT.getScene(sceneId);
+        setTheme();
+        renderParty();
+        renderProgress();
+
+        if (!scene) {
+          sceneTitle.textContent = 'The Fork';
+          sceneBody.textContent = 'Choose where to focus.';
+          choicesEl.innerHTML = '';
+          return;
+        }
+
+        if (scene.isEnding) {
+          showEndingActions();
+          if (!scene.choices || scene.choices.length === 0) {
+            sceneCard.hidden = true;
+            return;
+          }
+          sceneCard.hidden = false;
+        } else {
+          endingActions.hidden = true;
+          sceneCard.hidden = false;
+        }
+        sceneTitle.textContent = scene.title;
+        choicesEl.innerHTML = '';
+        choicesEl.classList.remove('choices-visible');
+
+        if (!scene.isEnding) endingActions.hidden = true;
+
+        function onTypewriterDone() {
+          (scene.choices || []).forEach(function (choice, i) {
+            var card = document.createElement('button');
+            card.type = 'button';
+            card.className = 'choice-card choice-card--animate';
+            card.style.animationDelay = (i * 0.08) + 's';
+            card.innerHTML = (choice.emoji ? '<span class="choice-emoji">' + choice.emoji + '</span> ' : '') + '<span class="choice-text">' + (choice.label || '') + '</span>';
+            card.addEventListener('click', function () {
+              RT.applyChoice(choice, scene);
+              render();
+            });
+            choicesEl.appendChild(card);
+          });
+          choicesEl.classList.add('choices-visible');
+        }
+
+        if (!scene.body || scene.body.length === 0) {
+          sceneBody.textContent = '';
+          onTypewriterDone();
+          return;
+        }
+        runTypewriter(sceneBody, scene.body, 18, onTypewriterDone);
+      }
+
+      // Reset state: fresh play, or retry from ending
+      var params = new URLSearchParams(window.location.search);
+      if (params.get('retry') === '1') {
+        RT.reset();
+        window.history.replaceState({}, '', 'game.html');
+      } else if (!sessionStorage.getItem('rotting-tides-started')) {
+        RT.reset();
+        sessionStorage.setItem('rotting-tides-started', '1');
+      }
+      render();
+    })();
+  </script>
+</body>
+</html>
